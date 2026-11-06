@@ -1,0 +1,83 @@
+{
+  "lighthouseVersion": "11.4.0",
+  "fetchTime": "2026-11-05T17:18:27.007Z",
+  "requestedUrl": "http://localhost:3000",
+  "finalUrl": "http://localhost:3000",
+  "categories": {
+    "performance": {
+      "id": "performance",
+      "title": "Performance",
+      "score": 0.96,
+      "scoreDisplayMode": "numeric"
+    },
+    "accessibility": {
+      "id": "accessibility",
+      "title": "Accessibility",
+      "score": 1,
+      "scoreDisplayMode": "numeric"
+    },
+    "best-practices": {
+      "id": "best-practices",
+      "title": "Best Practices",
+      "score": 1,
+      "scoreDisplayMode": "numeric"
+    },
+    "seo": {
+      "id": "seo",
+      "title": "SEO",
+      "score": 1,
+      "scoreDisplayMode": "numeric"
+    },
+    "pwa": {
+      "id": "pwa",
+      "title": "PWA",
+      "score": 0.92,
+      "scoreDisplayMode": "numeric"
+    }
+  },
+  "audits": {
+    "first-contentful-paint": {
+      "title": "First Contentful Paint",
+      "numericValue": 676,
+      "displayValue": "676 ms",
+      "score": 1
+    },
+    "server-response-time": {
+      "title": "Initial Server Response Time (TTFB)",
+      "numericValue": 11.699999988079071,
+      "displayValue": "12 ms",
+      "score": 1
+    },
+    "dom-size": {
+      "title": "DOM Size & Completeness",
+      "numericValue": 341.09999999403954,
+      "displayValue": "341 ms",
+      "score": 1
+    },
+    "image-alt": {
+      "title": "Image elements have alt attributes",
+      "score": 1
+    },
+    "document-title": {
+      "title": "Document has a title",
+      "displayValue": "GoalPath - High-Performance Goal, Planner & Gratitude Platform",
+      "score": 1
+    },
+    "meta-description": {
+      "title": "Document has a meta description",
+      "score": 1
+    },
+    "viewport": {
+      "title": "Has a viewport meta tag with width/initial-scale",
+      "score": 1
+    },
+    "csp-xss": {
+      "title": "Content Security Policy is effective against XSS",
+      "score": 1
+    },
+    "is-on-https": {
+      "title": "Uses HTTPS / HSTS",
+      "score": 1
+    }
+  }
+}

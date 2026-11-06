@@ -1,0 +1,23 @@
+{
+  "test": "k6 Load Test Benchmark",
+  "timestamp": "2026-11-05T17:17:49.766Z",
+  "targetUrl": "http://localhost:3000",
+  "concurrency": 50,
+  "totalRequests": 550,
+  "successfulRequests": 550,
+  "failedRequests": 0,
+  "errorRatePercent": 0,
+  "throughputReqSec": 201.6,
+  "latencyMs": {
+    "avg": 244.17,
+    "p50": 240.1,
+    "p90": 307.61,
+    "p95": 327.19,
+    "p99": 344.67
+  },
+  "thresholds": {
+    "p(95) < 300ms": false,
+    "p(99) < 500ms": true,
+    "errorRate < 1%": true
+  }
+}

@@ -1,0 +1,386 @@
+// GoalPath Prisma Schema - Production PostgreSQL Only
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String    @id @default(uuid())
+  email             String    @unique
+  passwordHash      String
+  name              String
+  avatarUrl         String?
+  timezone          String    @default("UTC")
+  language          String    @default("en") // "en" | "ta"
+  theme             String    @default("system") // "light" | "dark" | "system"
+  role              String    @default("USER") // "USER" | "ADMIN"
+  twoFactorEnabled  Boolean   @default(false)
+  twoFactorSecret   String?
+  backupCodes       String?   // JSON array of hashed codes
+  isSuspended       Boolean   @default(false)
+  emailVerified     Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  sessions          Session[]
+  goals             Goal[]
+  tasks             Task[]
+  habits            Habit[]
+  timeBlocks        TimeBlock[]
+  focusSessions     FocusSession[]
+  gratitudeEntries  GratitudeEntry[]
+  supportPeople     SupportPerson[]
+  thankYouNotes     ThankYouNote[]
+  groupMemberships  GroupMember[]
+  ownedGroups       Group[]          @relation("GroupOwner")
+  reviews           Review[]
+  badges            UserBadge[]
+  auditLogs         AuditLog[]
+  comments          GoalComment[]
+}
+
+model Session {
+  id           String    @id @default(uuid())
+  userId       String
+  token        String    @unique
+  ipAddress    String?
+  userAgent    String?
+  expiresAt    DateTime
+  createdAt    DateTime  @default(now())
+
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Goal {
+  id             String    @id @default(uuid())
+  userId         String
+  title          String
+  whyItMatters   String
+  category       String    @default("Personal") // Business, Study, Career, Health, Finance, Personal, Custom
+  priority       String    @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+  status         String    @default("IN_PROGRESS") // NOT_STARTED, IN_PROGRESS, COMPLETED, ARCHIVED
+  coverColor     String    @default("#4f46e5")
+  coverIcon      String    @default("target")
+  progressPercent Int      @default(0)
+  health         String    @default("ON_TRACK") // ON_TRACK, AT_RISK, BEHIND
+  startDate      DateTime  @default(now())
+  deadline       DateTime
+  isArchived     Boolean   @default(false)
+  shareToken     String?   @unique
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  milestones     Milestone[]
+  tasks          Task[]
+  plan           GoalPlan?
+  visionItems    VisionItem[]
+  supportPeople  SupportPerson[]
+  comments       GoalComment[]
+}
+
+model Milestone {
+  id          String    @id @default(uuid())
+  goalId      String
+  title       String
+  order       Int       @default(0)
+  isCompleted Boolean   @default(false)
+  dueDate     DateTime?
+  createdAt   DateTime  @default(now())
+
+  goal        Goal      @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  tasks       Task[]
+}
+
+model Task {
+  id               String    @id @default(uuid())
+  userId           String
+  goalId           String?
+  milestoneId      String?
+  title            String
+  notes            String?
+  priority         String    @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+  status           String    @default("TODO") // TODO, IN_PROGRESS, DONE
+  estimatedMinutes Int       @default(30)
+  actualMinutes    Int       @default(0)
+  dueDate          DateTime?
+  quadrant         String    @default("Q2_IMPORTANT_NOT_URGENT") // Q1_URGENT_IMPORTANT, Q2_IMPORTANT_NOT_URGENT, Q3_URGENT_NOT_IMPORTANT, Q4_NEITHER
+  tags             String?   // comma-separated tags
+  sortOrder        Int       @default(0)
+  isRolledOver     Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goal             Goal?          @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  milestone        Milestone?     @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  subtasks         Subtask[]
+  timeBlocks       TimeBlock[]
+  focusSessions    FocusSession[]
+}
+
+model Subtask {
+  id          String   @id @default(uuid())
+  taskId      String
+  title       String
+  isCompleted Boolean  @default(false)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+}
+
+model GoalPlan {
+  id                 String   @id @default(uuid())
+  goalId             String   @unique
+  actionSteps        String   // JSON text array
+  resourcesNeeded    String   // JSON text array
+  obstaclesSolutions String   // JSON text array of {obstacle, solution}
+  supportPeople      String?  // JSON text array
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  goal               Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+}
+
+model VisionItem {
+  id           String   @id @default(uuid())
+  goalId       String
+  imageUrl     String?
+  caption      String
+  quote        String?
+  targetMetric String?
+  order        Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  goal         Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+}
+
+model TimeBlock {
+  id          String   @id @default(uuid())
+  userId      String
+  taskId      String?
+  title       String
+  date        String   // YYYY-MM-DD
+  startTime   String   // HH:MM (24h)
+  endTime     String   // HH:MM (24h)
+  color       String   @default("#3b82f6")
+  isCompleted Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task        Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+}
+
+model FocusSession {
+  id              String   @id @default(uuid())
+  userId          String
+  taskId          String?
+  durationMinutes Int
+  ambientSound    String   @default("none") // none, rain, cafe, whitenoise, stream
+  createdAt       DateTime @default(now())
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task            Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+}
+
+model Habit {
+  id            String     @id @default(uuid())
+  userId        String
+  goalId        String?
+  title         String
+  frequency     String     @default("DAILY") // DAILY, WEEKLY, CUSTOM
+  targetDays    String     @default("1,2,3,4,5,6,7") // CSV 1=Mon..7=Sun
+  streakCurrent Int        @default(0)
+  streakBest    Int        @default(0)
+  color         String     @default("#10b981")
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  logs          HabitLog[]
+}
+
+model HabitLog {
+  id        String   @id @default(uuid())
+  habitId   String
+  date      String   // YYYY-MM-DD
+  status    String   @default("COMPLETED") // COMPLETED, SKIPPED
+  notes     String?
+  createdAt DateTime @default(now())
+
+  habit     Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+
+  @@unique([habitId, date])
+}
+
+model GratitudeEntry {
+  id        String   @id @default(uuid())
+  userId    String
+  content   String
+  category  String   @default("General") // Person, Work, Personal, Life
+  isPublic  Boolean  @default(false)
+  likes     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SupportPerson {
+  id             String         @id @default(uuid())
+  userId         String
+  goalId         String?
+  name           String
+  relationship   String         // Mentor, Friend, Colleague, Family, Coach
+  howTheyHelped  String
+  email          String?
+  phone          String?
+  lastThankedAt  DateTime?
+  createdAt      DateTime       @default(now())
+
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goal           Goal?          @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  thankYouNotes  ThankYouNote[]
+}
+
+model ThankYouNote {
+  id              String        @id @default(uuid())
+  userId          String
+  supportPersonId String
+  message         String
+  channel         String        @default("WHATSAPP") // WHATSAPP, EMAIL, MANUAL
+  sentAt          DateTime      @default(now())
+  createdAt       DateTime      @default(now())
+
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  supportPerson   SupportPerson @relation(fields: [supportPersonId], references: [id], onDelete: Cascade)
+}
+
+model Group {
+  id          String        @id @default(uuid())
+  ownerId     String
+  name        String
+  description String
+  inviteCode  String        @unique
+  isPublic    Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  owner       User          @relation("GroupOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members     GroupMember[]
+  goals       GroupGoal[]
+  challenges  GroupChallenge[]
+}
+
+model GroupMember {
+  id        String   @id @default(uuid())
+  groupId   String
+  userId    String
+  role      String   @default("MEMBER") // OWNER, ADMIN, MEMBER, VIEWER
+  joinedAt  DateTime @default(now())
+
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+}
+
+model GroupGoal {
+  id            String        @id @default(uuid())
+  groupId       String
+  title         String
+  description   String
+  targetMetric  String?
+  currentMetric String?
+  deadline      DateTime?
+  status        String        @default("ACTIVE") // ACTIVE, COMPLETED, ARCHIVED
+  createdAt     DateTime      @default(now())
+
+  group         Group         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  comments      GoalComment[]
+}
+
+model GroupChallenge {
+  id          String   @id @default(uuid())
+  groupId     String
+  title       String
+  description String
+  durationDays Int     @default(30)
+  startDate   DateTime @default(now())
+  endDate     DateTime
+  createdAt   DateTime @default(now())
+
+  group       Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+}
+
+model GoalComment {
+  id          String     @id @default(uuid())
+  userId      String
+  goalId      String?
+  groupGoalId String?
+  content     String
+  createdAt   DateTime   @default(now())
+
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goal        Goal?      @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  groupGoal   GroupGoal? @relation(fields: [groupGoalId], references: [id], onDelete: Cascade)
+}
+
+model Review {
+  id          String   @id @default(uuid())
+  userId      String
+  type        String   // "WEEKLY" | "MONTHLY"
+  periodStart DateTime
+  periodEnd   DateTime
+  wins        String   // JSON string or markdown
+  blockers    String
+  lessons     String
+  adjustments String
+  statsJson   String   // completion stats snapshot
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserBadge {
+  id         String   @id @default(uuid())
+  userId     String
+  badgeSlug  String
+  badgeName  String
+  badgeIcon  String
+  xpReward   Int      @default(100)
+  unlockedAt DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeSlug])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  actorEmail String
+  action     String   // LOGIN, LOGOUT, 2FA_ENABLE, DELETE_ACCOUNT, CREATE_GOAL, EXPORT_DATA, etc.
+  resource   String   // "User", "Goal", "Admin", etc.
+  details    String?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model FeatureFlag {
+  id                String   @id @default(uuid())
+  key               String   @unique
+  description       String
+  isEnabled         Boolean  @default(false)
+  rolloutPercentage Int      @default(100)
+  updatedAt         DateTime @updatedAt
+}

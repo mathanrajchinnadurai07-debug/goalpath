@@ -1,0 +1,179 @@
+name: GoalPath Enterprise CI/CD & Full Verification Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  full-stack-verification:
+    name: Postgres 16 + Redis 7 + E2E + Security + ZAP + Trivy + k6
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: goalpath_user
+          POSTGRES_PASSWORD: goalpath_pass
+          POSTGRES_DB: goalpath_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U goalpath_user -d goalpath_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://goalpath_user:goalpath_pass@127.0.0.1:5432/goalpath_db?schema=public
+      REDIS_URL: redis://127.0.0.1:6379
+      APP_SECRET: super-secure-production-ready-goalpath-jwt-secret-key-32chars
+      NEXTAUTH_URL: http://localhost:3000
+      DEV_SEED_PASSWORD: GoalPathDevPass2026!
+
+    steps:
+      - name: Checkout Source Code (Full Git History)
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        with:
+          fetch-depth: 0
+
+      - name: Prepare Reports Directory
+        run: mkdir -p reports
+
+      - name: Run Gitleaks Full History Scan
+        run: |
+          wget -q https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz
+          tar -xzf gitleaks_8.21.2_linux_x64.tar.gz gitleaks
+          ./gitleaks git . --log-opts="--all" --report-format json --report-path reports/gitleaks-report.json --verbose
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@60edb5dd545a775178f525247833795be8391ab8 # v4.0.2
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install Dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Dependency Vulnerability Audit (npm audit)
+        run: |
+          npm audit --json > reports/npm-audit-report.json || true
+          npm audit --audit-level=high
+
+      - name: Verify Redis 7 Service Container Version
+        run: |
+          docker exec $(docker ps -qf "ancestor=redis:7-alpine") redis-cli INFO server | tee reports/redis-info.txt
+
+      - name: Run Prisma Migrations & Seed Postgres 16
+        run: |
+          npx prisma generate
+          npx prisma migrate deploy
+          NODE_ENV=development npx tsx scripts/seed.ts
+
+      - name: Verify Production Startup Guard Rejects Dev Seed Users
+        run: |
+          if NODE_ENV=production npx tsx scripts/production-startup-check.ts; then
+            echo "ERROR: Production startup check should have failed when dev seed users exist!"
+            exit 1
+          else
+            echo "Verified: Production startup guard refused to start with dev seed users present."
+          fi
+
+      - name: Build Production Next.js Application
+        run: npm run build
+
+      - name: Start Dual Application Instances for E2E & Security Suites (Ports 3000 & 3001)
+        run: |
+          npx next dev -p 3000 &
+          npx next dev -p 3001 &
+          for i in $(seq 1 30); do
+            if curl -s http://localhost:3000 > /dev/null && curl -s http://localhost:3001 > /dev/null; then
+              echo "Both instances ready"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Run Two-Instance Redis State & Security Verification Suites
+        run: |
+          npx tsx scripts/verify-two-instances.ts | tee reports/two-instance-report.txt
+          npx tsx scripts/run-security-tests.ts | tee reports/security-suite-report.txt
+
+      - name: Install Playwright Chromium & Run E2E Suite
+        run: |
+          npx playwright install --with-deps chromium
+          npx tsx scripts/run-e2e-tests.ts | tee reports/playwright-e2e-report.txt
+
+      - name: Switch to Clean Production Dataset & Start Production Server (NODE_ENV=production)
+        run: |
+          pkill -f "next" || true
+          sleep 2
+          npx tsx scripts/prepare-production-benchmark-db.ts
+          NODE_ENV=production npx tsx scripts/production-startup-check.ts
+          npx next start -p 3000 &
+          npx next start -p 3001 &
+          for i in $(seq 1 30); do
+            if curl -s http://localhost:3000 > /dev/null && curl -s http://localhost:3001 > /dev/null; then
+              echo "Both production instances ready"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Run OWASP ZAP Baseline Scan
+        run: |
+          chmod 777 reports
+          docker run --rm --network host \
+            -v $(pwd)/reports:/zap/wrk:rw \
+            ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
+            -t http://localhost:3000 \
+            -r zap-baseline-report.html \
+            -J zap-baseline-report.json \
+            -I
+
+      - name: Build Docker Image & Run Trivy Container Image Scan
+        run: |
+          docker build -t goalpath:ci .
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v $(pwd)/reports:/reports \
+            aquasec/trivy:latest image \
+            --severity MEDIUM,HIGH,CRITICAL \
+            --format json \
+            --output /reports/trivy-image-report.json \
+            goalpath:ci
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest image \
+            --severity MEDIUM,HIGH,CRITICAL \
+            goalpath:ci | tee reports/trivy-image-report.txt
+
+      - name: Run k6 Sustained Ramp Load Test (50 -> 200 -> 500 VUs)
+        run: |
+          docker run --rm -i --network host \
+            -e BASE_URL=http://localhost:3000 \
+            -e DEV_SEED_PASSWORD=GoalPathDevPass2026! \
+            -v $(pwd):/work -w /work \
+            grafana/k6:latest run tests/load-test.js | tee reports/k6-output.txt
+          cp k6-summary.json reports/k6-summary.json || true
+
+      - name: Upload All Verification & Security Reports
+        if: always()
+        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
+        with:
+          name: goalpath-verification-reports
+          path: reports/
+          retention-days: 30
