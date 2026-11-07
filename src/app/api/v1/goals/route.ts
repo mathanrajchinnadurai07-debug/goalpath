@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
             (SELECT json_agg(t) FROM (
               SELECT "id", "title", "status", "priority", "dueDate"
               FROM "Task"
-              WHERE "goalId" = g."id"
+              WHERE "goalId" = g."id" AND "userId" = ${user.id}
             ) t),
             '[]'::json
           ) AS tasks

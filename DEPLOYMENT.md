@@ -2,7 +2,9 @@
 
 ---
 
-## 1. Configurable Regions (App + Database + Redis Co-Location)
+## 1. Configurable Regions (App + Database + Redis Co-Location) — `[PARTIAL]`
+
+> **Status: `PARTIAL`** (Configured in Terraform variables and documentation; actual deployment to AWS Singapore `ap-southeast-1` or Vercel `sin1` requires user cloud account credentials).
 
 Always deploy the Next.js application, Neon PostgreSQL database, and Upstash Redis instance in the **same geographic region** so database and cache round-trips stay sub-5ms internally.
 
@@ -24,7 +26,9 @@ Always deploy the Next.js application, Neon PostgreSQL database, and Upstash Red
 
 ---
 
-## 2. Step-by-Step Deployment Checklist
+## 2. Step-by-Step Deployment Checklist — `[PARTIAL]`
+
+> **Status: `PARTIAL`** (Checklist documented and tested locally against isolated database; final execution depends on user creating remote GitHub repo, adding secrets, and triggering the workflow).
 
 ### Step 1: Create the GitHub Repository & Push Code
 - [ ] Create a new private or public repository on GitHub (e.g., `https://github.com/<your-org>/goalpath.git`).

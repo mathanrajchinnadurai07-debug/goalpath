@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
                   '[]'::json
                 ) AS subtasks
               FROM "Task" t
-              LEFT JOIN "Goal" g ON g."id" = t."goalId"
+              LEFT JOIN "Goal" g ON g."id" = t."goalId" AND g."userId" = ${user.id}
               WHERE t."userId" = ${user.id}
                 AND ((t."dueDate" >= ${startOfDay} AND t."dueDate" <= ${endOfDay}) OR t."dueDate" IS NULL)
               ORDER BY t."sortOrder" ASC, t."createdAt" DESC
@@ -90,7 +90,7 @@ export async function GET(req: NextRequest) {
                   json_build_object('id', tk."id", 'title', tk."title", 'priority', tk."priority", 'status', tk."status")
                 ELSE NULL END AS task
               FROM "TimeBlock" tb
-              LEFT JOIN "Task" tk ON tk."id" = tb."taskId"
+              LEFT JOIN "Task" tk ON tk."id" = tb."taskId" AND tk."userId" = ${user.id}
               WHERE tb."userId" = ${user.id} AND tb."date" = ${date}
               ORDER BY tb."startTime" ASC
             ) b_row),

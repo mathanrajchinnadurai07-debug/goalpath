@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
         ) AS focus_sessions,
         COALESCE(
           (SELECT json_agg(b) FROM (
-            SELECT "id", "userId", "badgeSlug", "badgeName", "description", "icon", "xpReward", "awardedAt"
+            SELECT "id", "userId", "badgeSlug", "badgeName", "badgeIcon", "xpReward", "unlockedAt"
             FROM "UserBadge"
             WHERE "userId" = ${user.id}
           ) b),
