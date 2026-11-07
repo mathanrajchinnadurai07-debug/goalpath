@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
+import { invalidateUserCache } from "@/lib/cache";
 
 const milestoneToggleSchema = z.object({
   id: z.string(),
@@ -69,6 +70,7 @@ export async function PATCH(req: NextRequest) {
       },
     });
 
+    await invalidateUserCache(user.id);
     return NextResponse.json({
       success: true,
       milestone: { id, isCompleted },

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
+import { invalidateUserCache } from "@/lib/cache";
 
 const GOAL_TEMPLATES = [
   {
@@ -152,6 +153,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    await invalidateUserCache(user.id);
     return NextResponse.json({ success: true, goal });
   } catch (error: any) {
     return NextResponse.json({ error: "Failed to clone template" }, { status: 500 });

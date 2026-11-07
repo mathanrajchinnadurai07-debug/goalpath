@@ -47,6 +47,18 @@ export async function POST(req: NextRequest) {
     const { email, password, name, timezone, language, mainGoal, category } = parsed.data;
     const lowerEmail = email.toLowerCase();
 
+    const RESERVED_SEED_EMAILS = new Set([
+      "sarah.chen@example.com",
+      "kavitha.raman@example.com",
+      "admin@goalpath.app",
+    ]);
+    if (RESERVED_SEED_EMAILS.has(lowerEmail) || lowerEmail.endsWith("@goalpath.app")) {
+      return NextResponse.json(
+        { error: "This email address is reserved and cannot be registered." },
+        { status: 403 }
+      );
+    }
+
     const existing = await prisma.user.findUnique({
       where: { email: lowerEmail },
     });
@@ -65,6 +77,7 @@ export async function POST(req: NextRequest) {
         timezone,
         language,
         role: "USER",
+        isSeed: false,
         emailVerified: true,
       },
     });

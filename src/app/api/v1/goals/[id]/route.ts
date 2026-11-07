@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUser, sanitizeText, validateCsrf } from "@/lib/auth";
+import { invalidateUserCache } from "@/lib/cache";
 
 const updateGoalSchema = z.object({
   title: z.string().min(2).max(255).optional(),
@@ -127,6 +128,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       data,
     });
 
+    await invalidateUserCache(user.id);
     return NextResponse.json({ success: true, goal: updated });
   } catch (error: any) {
     console.error("Update goal error:", error);
@@ -158,6 +160,7 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
       where: { id },
     });
 
+    await invalidateUserCache(user.id);
     return NextResponse.json({ success: true, message: "Goal deleted" });
   } catch (error: any) {
     return NextResponse.json({ error: "Failed to delete goal" }, { status: 500 });

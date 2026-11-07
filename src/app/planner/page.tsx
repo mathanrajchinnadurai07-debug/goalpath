@@ -66,15 +66,11 @@ export default function PlannerPage() {
   const fetchData = async (dateOverride?: string) => {
     const targetDate = dateOverride || todayStr || new Date().toISOString().split("T")[0];
     try {
-      const [tasksRes, blocksRes] = await Promise.all([
-        fetch(`/api/v1/tasks?date=${targetDate}`),
-        fetch(`/api/v1/timeblocks?date=${targetDate}`),
-      ]);
-      const tasksData = await tasksRes.json();
-      const blocksData = await blocksRes.json();
+      const res = await fetch(`/api/v1/tasks?date=${targetDate}&includeBlocks=true`);
+      const data = await res.json();
 
-      if (tasksData.tasks) setTasks(tasksData.tasks);
-      if (blocksData.blocks) setTimeblocks(blocksData.blocks);
+      if (data.tasks) setTasks(data.tasks);
+      if (data.blocks) setTimeblocks(data.blocks);
     } finally {
       setLoading(false);
     }

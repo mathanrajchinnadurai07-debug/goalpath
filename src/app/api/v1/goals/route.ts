@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUser, sanitizeText, validateCsrf } from "@/lib/auth";
+import { getCachedJson, invalidateUserCache, setCachedJson } from "@/lib/cache";
 
 const createGoalSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters").max(255),
@@ -43,6 +44,49 @@ export async function GET(req: NextRequest) {
     const priority = searchParams.get("priority");
     const status = searchParams.get("status");
     const search = searchParams.get("search");
+
+    const isDefaultList =
+      (!category || category === "ALL") &&
+      (!priority || priority === "ALL") &&
+      (!status || status === "ALL") &&
+      (!search || !search.trim());
+
+    const cacheKey = `cache:goals:${user.id}:default`;
+    if (isDefaultList) {
+      const cached = await getCachedJson<any>(cacheKey);
+      if (cached) {
+        return NextResponse.json(cached);
+      }
+
+      // Single batched PostgreSQL query returning goals + nested milestones & tasks in 1 round-trip
+      const goals = await prisma.$queryRaw<any[]>`
+        SELECT
+          g.*,
+          COALESCE(
+            (SELECT json_agg(m ORDER BY m."order" ASC) FROM (
+              SELECT "id", "title", "isCompleted", "order"
+              FROM "Milestone"
+              WHERE "goalId" = g."id"
+            ) m),
+            '[]'::json
+          ) AS milestones,
+          COALESCE(
+            (SELECT json_agg(t) FROM (
+              SELECT "id", "title", "status", "priority", "dueDate"
+              FROM "Task"
+              WHERE "goalId" = g."id"
+            ) t),
+            '[]'::json
+          ) AS tasks
+        FROM "Goal" g
+        WHERE g."userId" = ${user.id} AND g."isArchived" = false
+        ORDER BY g."priority" DESC, g."deadline" ASC
+      `;
+
+      const payload = { goals };
+      await setCachedJson(cacheKey, payload, 60);
+      return NextResponse.json(payload);
+    }
 
     const where: any = {
       userId: user.id,
@@ -152,6 +196,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    await invalidateUserCache(user.id);
     return NextResponse.json({ success: true, goal });
   } catch (error: any) {
     console.error("Create goal error:", error);

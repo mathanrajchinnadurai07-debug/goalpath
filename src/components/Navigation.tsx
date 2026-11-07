@@ -58,7 +58,7 @@ export function Navigation() {
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex flex-col w-64 border-r border-border bg-card fixed top-0 bottom-0 left-0 z-40">
         <div className="p-5 flex items-center justify-between border-b border-border">
-          <Link href="/dashboard" prefetch={false} className="flex items-center gap-2.5">
+          <Link href="/dashboard" className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center text-primary-foreground font-bold shadow-md shadow-primary/20">
               <Target className="w-5 h-5" />
             </div>
@@ -77,7 +77,6 @@ export function Navigation() {
               <Link
                 key={item.href}
                 href={item.href}
-                prefetch={false}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition ${
                   isActive
                     ? "bg-primary text-primary-foreground shadow-sm"

@@ -9,11 +9,17 @@ terraform {
 }
 
 provider "aws" {
-  region = var.aws_region
+  region = var.app_region
 }
 
-variable "aws_region" {
-  default = "us-east-1"
+variable "app_region" {
+  description = "Primary application deployment region (ap-southeast-1 Singapore recommended for India users)"
+  default     = "ap-southeast-1"
+}
+
+variable "neon_region" {
+  description = "Neon PostgreSQL region (aws-ap-southeast-1 Singapore recommended to co-locate with app_region)"
+  default     = "aws-ap-southeast-1"
 }
 
 variable "environment" {
@@ -95,11 +101,11 @@ resource "aws_s3_bucket_public_access_block" "block_public" {
 resource "aws_subnet" "private_a" {
   vpc_id            = aws_vpc.goalpath_vpc.id
   cidr_block        = "10.0.1.0/24"
-  availability_zone = "${var.aws_region}a"
+  availability_zone = "${var.app_region}a"
 }
 
 resource "aws_subnet" "private_b" {
   vpc_id            = aws_vpc.goalpath_vpc.id
   cidr_block        = "10.0.2.0/24"
-  availability_zone = "${var.aws_region}b"
+  availability_zone = "${var.app_region}b"
 }

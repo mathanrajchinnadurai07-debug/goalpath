@@ -23,6 +23,7 @@ model User {
   twoFactorSecret   String?
   backupCodes       String?   // JSON array of hashed codes
   isSuspended       Boolean   @default(false)
+  isSeed            Boolean   @default(false) @map("is_seed")
   emailVerified     Boolean   @default(true)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt

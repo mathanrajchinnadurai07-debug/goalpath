@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
+import { getCachedJson, invalidateUserCache, setCachedJson } from "@/lib/cache";
 
 const timeBlockSchema = z.object({
   title: z.string().min(1),
@@ -23,6 +24,12 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const date = searchParams.get("date") || new Date().toISOString().split("T")[0];
 
+    const cacheKey = `cache:timeblocks:${user.id}:${date}`;
+    const cached = await getCachedJson<any>(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached);
+    }
+
     const blocks = await prisma.timeBlock.findMany({
       where: {
         userId: user.id,
@@ -36,6 +43,7 @@ export async function GET(req: NextRequest) {
       orderBy: { startTime: "asc" },
     });
 
+    await setCachedJson(cacheKey, { blocks }, 60);
     return NextResponse.json({ blocks });
   } catch (error: any) {
     return NextResponse.json({ error: "Failed to fetch time blocks" }, { status: 500 });
@@ -75,6 +83,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    await invalidateUserCache(user.id);
     return NextResponse.json({ success: true, block });
   } catch (error: any) {
     return NextResponse.json({ error: "Failed to create time block" }, { status: 500 });
@@ -106,6 +115,7 @@ export async function PATCH(req: NextRequest) {
       data: updates,
     });
 
+    await invalidateUserCache(user.id);
     return NextResponse.json({ success: true, block: updated });
   } catch (error: any) {
     return NextResponse.json({ error: "Failed to update block" }, { status: 500 });
@@ -129,6 +139,7 @@ export async function DELETE(req: NextRequest) {
       where: { id, userId: user.id },
     });
 
+    await invalidateUserCache(user.id);
     return NextResponse.json({ success: true, message: "Block deleted" });
   } catch (error: any) {
     return NextResponse.json({ error: "Failed to delete block" }, { status: 500 });

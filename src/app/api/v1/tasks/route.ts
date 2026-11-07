@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUser, sanitizeText, validateCsrf } from "@/lib/auth";
+import { getCachedJson, invalidateUserCache, setCachedJson } from "@/lib/cache";
 
 const createTaskSchema = z.object({
   title: z.string().min(1, "Task title is required").max(300),
@@ -47,6 +48,72 @@ export async function GET(req: NextRequest) {
     const date = searchParams.get("date"); // YYYY-MM-DD
     const goalId = searchParams.get("goalId");
     const status = searchParams.get("status");
+    const includeBlocks = searchParams.get("includeBlocks") === "true";
+
+    if (includeBlocks && date && !goalId && !status) {
+      const plannerCacheKey = `cache:planner:${user.id}:${date}`;
+      const cachedPlanner = await getCachedJson<any>(plannerCacheKey);
+      if (cachedPlanner) {
+        return NextResponse.json(cachedPlanner);
+      }
+
+      const startOfDay = new Date(`${date}T00:00:00.000Z`);
+      const endOfDay = new Date(`${date}T23:59:59.999Z`);
+
+      // Single batched PostgreSQL query retrieving both tasks (with goal + subtasks) and timeblocks in 1 round-trip
+      const rows = await prisma.$queryRaw<Array<{ tasks: any[]; blocks: any[] }>>`
+        SELECT
+          COALESCE(
+            (SELECT json_agg(t_row) FROM (
+              SELECT
+                t.*,
+                CASE WHEN g."id" IS NOT NULL THEN
+                  json_build_object('id', g."id", 'title', g."title", 'coverColor', g."coverColor", 'category', g."category")
+                ELSE NULL END AS goal,
+                COALESCE(
+                  (SELECT json_agg(s) FROM "Subtask" s WHERE s."taskId" = t."id"),
+                  '[]'::json
+                ) AS subtasks
+              FROM "Task" t
+              LEFT JOIN "Goal" g ON g."id" = t."goalId"
+              WHERE t."userId" = ${user.id}
+                AND ((t."dueDate" >= ${startOfDay} AND t."dueDate" <= ${endOfDay}) OR t."dueDate" IS NULL)
+              ORDER BY t."sortOrder" ASC, t."createdAt" DESC
+            ) t_row),
+            '[]'::json
+          ) AS tasks,
+          COALESCE(
+            (SELECT json_agg(b_row) FROM (
+              SELECT
+                tb.*,
+                CASE WHEN tk."id" IS NOT NULL THEN
+                  json_build_object('id', tk."id", 'title', tk."title", 'priority', tk."priority", 'status', tk."status")
+                ELSE NULL END AS task
+              FROM "TimeBlock" tb
+              LEFT JOIN "Task" tk ON tk."id" = tb."taskId"
+              WHERE tb."userId" = ${user.id} AND tb."date" = ${date}
+              ORDER BY tb."startTime" ASC
+            ) b_row),
+            '[]'::json
+          ) AS blocks
+      `;
+
+      const payload = {
+        tasks: rows[0]?.tasks || [],
+        blocks: rows[0]?.blocks || [],
+      };
+      await setCachedJson(plannerCacheKey, payload, 60);
+      return NextResponse.json(payload);
+    }
+
+    if (!goalId && !status) {
+      const todayKey = date || new Date().toISOString().split("T")[0];
+      const tasksCacheKey = `cache:tasks:${user.id}:${todayKey}`;
+      const cachedTasks = await getCachedJson<any>(tasksCacheKey);
+      if (cachedTasks) {
+        return NextResponse.json(cachedTasks);
+      }
+    }
 
     const where: any = { userId: user.id };
     if (goalId) where.goalId = goalId;
@@ -69,6 +136,11 @@ export async function GET(req: NextRequest) {
       },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
     });
+
+    if (!goalId && !status) {
+      const todayKey = date || new Date().toISOString().split("T")[0];
+      await setCachedJson(`cache:tasks:${user.id}:${todayKey}`, { tasks }, 60);
+    }
 
     return NextResponse.json({ tasks });
   } catch (error: any) {
@@ -138,6 +210,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    await invalidateUserCache(user.id);
     return NextResponse.json({ success: true, task });
   } catch (error: any) {
     return NextResponse.json({ error: "Failed to create task" }, { status: 500 });
@@ -205,6 +278,7 @@ export async function PATCH(req: NextRequest) {
       },
     });
 
+    await invalidateUserCache(user.id);
     return NextResponse.json({ success: true, task: updated });
   } catch (error: any) {
     return NextResponse.json({ error: "Failed to update task" }, { status: 500 });
@@ -232,6 +306,7 @@ export async function DELETE(req: NextRequest) {
       where: { id, userId: user.id },
     });
 
+    await invalidateUserCache(user.id);
     return NextResponse.json({ success: true, message: "Task deleted" });
   } catch (error: any) {
     return NextResponse.json({ error: "Failed to delete task" }, { status: 500 });

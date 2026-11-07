@@ -5,21 +5,16 @@ export async function register() {
     process.env.NEXT_PHASE !== "phase-production-build"
   ) {
     const { prisma } = await import("@/lib/prisma");
-    const devSeedEmails = [
-      "sarah.chen@example.com",
-      "kavitha.raman@example.com",
-      "admin@goalpath.app",
-    ];
 
     const seedUserCount = await prisma.user.count({
       where: {
-        email: { in: devSeedEmails },
+        isSeed: true,
       },
     });
 
     if (seedUserCount > 0) {
       console.error(
-        `❌ FATAL: Production startup aborted! DATABASE_URL contains ${seedUserCount} development seed user(s) (${devSeedEmails.join(", ")}). Refusing to start when NODE_ENV=production.`
+        `❌ FATAL: Production startup aborted! DATABASE_URL contains ${seedUserCount} development seed user(s) with is_seed=true. Refusing to start when NODE_ENV=production.`
       );
       process.exit(1);
     }
