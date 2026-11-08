@@ -39,6 +39,7 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://goalpath_user:goalpath_pass@127.0.0.1:5432/goalpath_db?schema=public
+      DIRECT_URL: postgresql://goalpath_user:goalpath_pass@127.0.0.1:5432/goalpath_db?schema=public
       REDIS_URL: redis://127.0.0.1:6379
       APP_SECRET: super-secure-production-ready-goalpath-jwt-secret-key-32chars
       NEXTAUTH_URL: http://localhost:3000
