@@ -10,7 +10,7 @@ async function main() {
     process.exit(1);
   }
 
-  const dbUrl = process.env.DATABASE_URL || "";
+  const dbUrl = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL || "";
   let dbHost = "";
   try {
     dbHost = new URL(dbUrl).hostname;

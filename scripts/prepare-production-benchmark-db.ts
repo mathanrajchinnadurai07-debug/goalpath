@@ -1,8 +1,6 @@
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "../src/lib/prisma";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-
-const prisma = new PrismaClient();
 
 const DEV_SEED_EMAILS = [
   "sarah.chen@example.com",

@@ -18,11 +18,11 @@ jobs:
         env:
           POSTGRES_USER: goalpath_user
           POSTGRES_PASSWORD: goalpath_pass
-          POSTGRES_DB: goalpath_db
+          POSTGRES_DB: goalpath_test
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U goalpath_user -d goalpath_db"
+          --health-cmd "pg_isready -U goalpath_user -d goalpath_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 5
@@ -38,12 +38,15 @@ jobs:
           --health-retries 5
 
     env:
-      DATABASE_URL: postgresql://goalpath_user:goalpath_pass@127.0.0.1:5432/goalpath_db?schema=public
-      DIRECT_URL: postgresql://goalpath_user:goalpath_pass@127.0.0.1:5432/goalpath_db?schema=public
+      # Isolated test database URL used strictly for all CI testing, migrations & verification
+      TEST_DATABASE_URL: postgresql://goalpath_user:goalpath_pass@127.0.0.1:5432/goalpath_test?schema=public
+      DIRECT_URL: postgresql://goalpath_user:goalpath_pass@127.0.0.1:5432/goalpath_test?schema=public
       REDIS_URL: redis://127.0.0.1:6379
       APP_SECRET: super-secure-production-ready-goalpath-jwt-secret-key-32chars
       NEXTAUTH_URL: http://localhost:3000
       DEV_SEED_PASSWORD: GoalPathDevPass2026!
+      # Production DATABASE_URL is explicitly empty so CI test suites can NEVER touch production
+      DATABASE_URL: ""
 
     steps:
       - name: Checkout Source Code (Full Git History)
@@ -79,12 +82,18 @@ jobs:
           docker exec $(docker ps -qf "ancestor=redis:7-alpine") redis-cli INFO server | tee reports/redis-info.txt
 
       - name: Run Prisma Migrations & Seed Postgres 16
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+          DIRECT_URL: ${{ env.TEST_DATABASE_URL }}
+          NODE_ENV: development
         run: |
           npx prisma generate
           npx prisma migrate deploy
-          NODE_ENV=development npx tsx scripts/seed.ts
+          npx tsx scripts/seed.ts
 
       - name: Verify Production Startup Guard Rejects Dev Seed Users
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
         run: |
           if NODE_ENV=production npx tsx scripts/production-startup-check.ts; then
             echo "ERROR: Production startup check should have failed when dev seed users exist!"
@@ -94,9 +103,16 @@ jobs:
           fi
 
       - name: Build Production Next.js Application
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+          DIRECT_URL: ${{ env.TEST_DATABASE_URL }}
         run: npm run build
 
       - name: Start Dual Application Instances for E2E & Security Suites (Ports 3000 & 3001)
+        env:
+          DATABASE_URL: ""
+          TEST_DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+          IS_TEST_SUITE: "true"
         run: |
           npx next dev -p 3000 &
           npx next dev -p 3001 &
@@ -109,16 +125,27 @@ jobs:
           done
 
       - name: Run Two-Instance Redis State & Security Verification Suites
+        env:
+          DATABASE_URL: ""
+          TEST_DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+          IS_TEST_SUITE: "true"
         run: |
           npx tsx scripts/verify-two-instances.ts | tee reports/two-instance-report.txt
           npx tsx scripts/run-security-tests.ts | tee reports/security-suite-report.txt
 
       - name: Install Playwright Chromium & Run E2E Suite
+        env:
+          DATABASE_URL: ""
+          TEST_DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+          IS_TEST_SUITE: "true"
         run: |
           npx playwright install --with-deps chromium
           npx tsx scripts/run-e2e-tests.ts | tee reports/playwright-e2e-report.txt
 
       - name: Switch to Clean Production Dataset & Start Production Server (NODE_ENV=production)
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+          TEST_DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
         run: |
           pkill -f "next" || true
           sleep 2
