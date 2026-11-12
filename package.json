@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "postinstall": "prisma generate",
     "prestart": "npx tsx scripts/production-startup-check.ts",
     "start": "next start",
     "lint": "next lint"
