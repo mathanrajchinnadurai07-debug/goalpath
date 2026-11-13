@@ -29,7 +29,14 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password, totpCode }),
       });
 
-      const data = await res.json();
+      const rawText = await res.text();
+      let data: { error?: string; requires2FA?: boolean } = {};
+      try {
+        data = rawText ? JSON.parse(rawText) : {};
+      } catch {
+        setError(`Server error (${res.status}). Please try again in a moment.`);
+        return;
+      }
 
       if (!res.ok) {
         setError(data.error || "Login failed");

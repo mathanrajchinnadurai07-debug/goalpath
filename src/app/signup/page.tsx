@@ -40,7 +40,15 @@ export default function SignupPage() {
         body: JSON.stringify({ name, email, password, language }),
       });
 
-      const data = await res.json();
+      const rawText = await res.text();
+      let data: { error?: string } = {};
+      try {
+        data = rawText ? JSON.parse(rawText) : {};
+      } catch {
+        setError(`Server error (${res.status}). Please try again in a moment.`);
+        return;
+      }
+
       if (!res.ok) {
         setError(data.error || "Signup failed");
         return;
